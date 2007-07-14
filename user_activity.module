@@ -2,28 +2,18 @@
 /* $Id$ */
 
 /**
- * TODO:
+ * @file
+ * Calculates and displays a user's activity index.
+ * 
+ * @author
+ * Stefan Auditor <stefan.auditor@erdfisch.de>
  */
 
-// DEFINE('USER_ACTIVITY_PERIOD', 3600*24*30);
-DEFINE('USER_ACTIVITY_PERIOD', 30);
+DEFINE('USER_ACTIVITY_PERIOD', 3600*24*30);
 
 /**
-* Implementation of hook_help();
-*/
-function user_activity_help($section='') {
-
-  $output = '';
-
-  switch ($section) {
-    case "admin/help#user-activity":
-      $output = '<p>'.  t("Generates and displays a user's activity index.") .'</p>';
-      break;
-  }
-
-  return $output;
-}
-
+ * Implementation of hook_user();
+ */
 function user_activity_user($op, &$edit, &$account, $category = NULL) {
   global $user;
   
@@ -34,7 +24,7 @@ function user_activity_user($op, &$edit, &$account, $category = NULL) {
     case 'view':
       $items['user_activity'] = array(
         'title' => t('Latest activity'),
-        'value' => theme_user_activity_o_meter($account->user_activity_index),
+        'value' => theme('user_activity_o_meter', $account->user_activity_index),
         'class' => 'user-activity',
       );
       return array(t('Activity') => $items);
@@ -45,6 +35,9 @@ function user_activity_user($op, &$edit, &$account, $category = NULL) {
   }
 }
 
+/**
+ * Implementation of hook_exit();
+ */
 function user_activity_exit($destination = NULL) {
   global $user;
   
@@ -55,6 +48,10 @@ function user_activity_exit($destination = NULL) {
   user_activity_maintenance();
 }
 
+/**
+ * Count a user's logins
+ * @param $user a user object
+ */
 function user_activity_login_count($user) {
   if (!db_result(db_query("SELECT COUNT(uid) AS count FROM {user_activity} WHERE uid=%d", $user->uid))) {
     user_activity_set($user);
@@ -64,6 +61,10 @@ function user_activity_login_count($user) {
   }
 }
 
+/**
+ * Count a user's page impressions
+ * @param $user a user object
+ */
 function user_activity_pi_count($user) {
   if (!db_result(db_query("SELECT COUNT(uid) AS count FROM {user_activity} WHERE uid=%d", $user->uid))) {
     user_activity_set($user);
@@ -73,22 +74,46 @@ function user_activity_pi_count($user) {
   }
 }
 
+/**
+ * First time
+ * @param $user a user object
+ */
 function user_activity_set($user) {
   db_query("INSERT INTO {user_activity} (uid, pis, logins, since) VALUES (%d, 1, 1, %d)", $user->uid, time());
 }
 
+/**
+ * Get a user's page impressions
+ * @param $user a user object
+ * @return an integer representing the total of a user's page impressions
+ */
 function user_activity_pis($user) {
   return db_result(db_query("SELECT pis FROM {user_activity} WHERE uid=%d LIMIT 1", $user->uid));
 }
 
+/**
+ * Get a user's logins
+ * @param $user a user object
+ * @return an integer representing the total of a user's logins
+ */
 function user_activity_logins($user) {
   return db_result(db_query("SELECT logins FROM {user_activity} WHERE uid=%d LIMIT 1", $user->uid));
 }
 
+/**
+ * Maintenance
+ * TODO:
+ * Check the database for old values and update to keep the db slim
+ */
 function user_activity_maintenance() {
   //TODO: database maintenance to keep the db small
 }
 
+/**
+ * Calculate a user's activity index based on logins, page impressions and authorship
+ * @param $user a user object
+ * @return an integer representing a percentage 
+ */
 function user_activity_index_calculate($user) {
   //TODO: make calculation time dependant to get more accurate results
 
@@ -124,6 +149,11 @@ function user_activity_index_calculate($user) {
   return round($activity_index);
 }
 
+/**
+ * Display a percentage meter
+ * @param index a integer value representing a percentage
+ * @return a percentage meter in html
+ */
 function theme_user_activity_o_meter($index) {
   $output = '
   <div class="user_activity_o_meter" style="width:100%;height:20px;background-color:#C3D9FF;">
@@ -134,7 +164,12 @@ function theme_user_activity_o_meter($index) {
   return $output;
 }
 
-
+/**
+ * Implementation of hook_uninstall();
+ */
+function user_activity_uninstall() {
+  db_query('DROP TABLE {user_activity}');
+}
 
 
 
