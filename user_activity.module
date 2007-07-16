@@ -164,13 +164,6 @@ function theme_user_activity_o_meter($index) {
   return $output;
 }
 
-/**
- * Implementation of hook_uninstall();
- */
-function user_activity_uninstall() {
-  db_query('DROP TABLE {user_activity}');
-}
-
 
 
 

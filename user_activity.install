@@ -18,3 +18,10 @@ function user_activity_install() {
       break;
   }
 }
+
+/**
+ * Implementation of hook_uninstall();
+ */
+function user_activity_uninstall() {
+  db_query('DROP TABLE {user_activity}');
+}
