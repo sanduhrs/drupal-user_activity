@@ -15,6 +15,20 @@ function user_activity_install() {
       );
       break;
     case 'pgsql':
+      db_query("CREATE TABLE user_activity (
+                  uid int_unsigned NOT NULL PRIMARY KEY,
+                  pis integer NOT NULL,
+                  logins integer NOT NULL,
+                  since integer NOT NULL
+                );"
+      );
       break;
   }
+}
+
+/**
+ * Implementation of hook_uninstall();
+ */
+function user_activity_uninstall() {
+  db_query('DROP TABLE {user_activity}');
 }
