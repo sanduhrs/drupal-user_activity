@@ -122,9 +122,9 @@ function user_activity_index_calculate($user) {
   $max->logins    = $max->logins ? $max->logins : 1;
   $max->pis       = db_result(db_query("SELECT pis FROM {user_activity} ORDER BY pis DESC LIMIT 1"));
   $max->pis       = $max->pis ? $max->pis : 1;
-  $max->nodes     = db_result(db_query("SELECT COUNT(*) AS count FROM {node} GROUP BY uid ORDER BY count(*) DESC LIMIT 1"));
+  $max->nodes     = db_result(db_query("SELECT COUNT(*) AS count FROM {node} GROUP BY uid ORDER BY count DESC LIMIT 1"));
   $max->nodes     = $max->nodes ? $max->nodes : 1;
-  $max->comments  = db_result(db_query("SELECT COUNT(*) AS count FROM {comments} GROUP BY uid ORDER BY count(*) DESC LIMIT 1"));
+  $max->comments  = db_result(db_query("SELECT COUNT(*) AS count FROM {comments} GROUP BY uid ORDER BY count DESC LIMIT 1"));
   $max->comments  = $max->comments ? $max->comments : 1;
   
   //Get user's logins/pis/nodes
