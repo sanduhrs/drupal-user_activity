@@ -9,17 +9,23 @@ function user_activity_install() {
                   uid int(10) unsigned NOT NULL,
                   pis int(11) NOT NULL,
                   logins int(11) NOT NULL,
-                  since int(11) NOT NULL,
-                  KEY uid (`uid`)
+                  idx double(30,20) unsigned NOT NULL,
+                  timestamp int(11) NOT NULL,
+                  PRIMARY KEY (`uid`),
+                  KEY (`pis`),
+                  KEY (`logins`),
+                  KEY (`idx`)
                 ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;"
       );
       break;
     case 'pgsql':
-      db_query("CREATE TABLE user_activity (
+      db_query("CREATE TABLE {user_activity} (
                   uid int_unsigned NOT NULL PRIMARY KEY,
                   pis integer NOT NULL,
                   logins integer NOT NULL,
                   since integer NOT NULL
+                  idx double NOT NULL,
+                  timestamp integer NOT NULL
                 );"
       );
       break;
