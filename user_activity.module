@@ -89,8 +89,8 @@ function user_activity_block($op = 'list', $delta = 0, $edit = array()) {
   global $user;
 
   if ($op == 'list') {
-     $blocks[0]['info'] = t('Most active users');
-     return $blocks;
+    $blocks[0]['info'] = t('Most active users');
+    return $blocks;
   }
   else if ($op == 'configure' && $delta == 0) {
     $form['user_activity_activity_count'] = array(
