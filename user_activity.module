@@ -18,13 +18,13 @@ function user_activity_menu($may_cache) {
   $items = array();
 
   if ($may_cache) {
-    $items[] = array('path' => 'activity',
+    $items[] = array('path' => 'user_activity',
       'title' => t('User activity'),
       'callback' => 'user_activity_browse',
       'access' => user_access('access user profiles'),
       'type' => MENU_SUGGESTED_ITEM,
     );
-    $items[] = array('path' => 'activity/feed',
+    $items[] = array('path' => 'user_activity/feed',
       'title' => t('User activity feed'),
       'callback' => 'user_activity_feed',
       'access' => user_access('access user profiles'),
