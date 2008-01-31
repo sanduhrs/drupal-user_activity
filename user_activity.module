@@ -481,7 +481,6 @@ function user_activity_settings() {
 }
 
 function user_activity_settings_submit($form_id, $form_values) {
-//   dprint_r($form_values);
   if (is_numeric($form_values['user_activity_pis']))      variable_set('user_activity_pis',      $form_values['user_activity_pis']);
   if (is_numeric($form_values['user_activity_logins']))   variable_set('user_activity_logins',   $form_values['user_activity_logins']);
   if (is_numeric($form_values['user_activity_pis']))      variable_set('user_activity_nodes',    $form_values['user_activity_nodes']);
