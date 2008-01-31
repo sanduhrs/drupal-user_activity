@@ -177,7 +177,6 @@ function user_activity_exit($destination = NULL) {
     
     //get cached object
     $cache = cache_get($cid);
-    drupal_set_message(print_r($cache, 1));
     
     if (empty($cache)  OR (($cache->created+$lifetime) <= time())) {
       //Recalculate the activity index
