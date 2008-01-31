@@ -55,7 +55,9 @@ function user_activity_perm() {
  */
 function user_activity_user($op, &$edit, &$account, $category = NULL) {
   global $user;
-
+  //cache id
+  $cid = 'user-activity-uid-'. $account->uid;
+  
   switch ($op) {
     case 'insert':
       $idx = user_activity_index_calculate($account);
@@ -77,6 +79,7 @@ function user_activity_user($op, &$edit, &$account, $category = NULL) {
       break;
     case 'delete':
       db_query("DELETE FROM {user_activity} WHERE uid=%d", $account->uid);
+      cache_clear_all($cid, 'cache');
       break;
   }
 }
