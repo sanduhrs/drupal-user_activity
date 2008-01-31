@@ -73,23 +73,7 @@ function user_activity_user($op, &$edit, &$account, $category = NULL) {
       return array(t('Activity') => $items);
       break;
     case 'load':
-      //cache id
-      $cid = 'user-interests-uid-'. $account->uid;
-      //get cached object
-      $cache = cache_get($cid);
-      
-      if (!empty($cache)) {
-        //attach cached object to the user object
-        $account->user_activity_index = unserialize($cache->data);
-        
-      }
-      else {
-        //load activity index
-        $account->user_activity_index = user_activity_index_get($account);
-        //generate cache
-        cache_set($cid, 'cache', serialize($account->user_activity_index), CACHE_TEMPORARY);
-      }
-      
+      $account->user_activity_index = user_activity_index_get($account);
       break;
     case 'delete':
       db_query("DELETE FROM {user_activity} WHERE uid=%d", $account->uid);
@@ -185,10 +169,24 @@ function user_activity_exit($destination = NULL) {
   if ($user->uid) {
     //Count the page impression
     user_activity_pi_count($user);
-    //Recalculate the activity index
-    $index = user_activity_index_calculate($user);
-    //Store the index
-    user_activity_index_store($user, $index);
+    
+    //cache id
+    $cid = 'user-activity-uid-'. $user->uid;
+    //maximum cache time
+    $lifetime = 24*60*60; //24hours
+    
+    //get cached object
+    $cache = cache_get($cid);
+    drupal_set_message(print_r($cache, 1));
+    
+    if (empty($cache)  OR (($cache->created+$lifetime) <= time())) {
+      //Recalculate the activity index
+      $index = user_activity_index_calculate($user);
+      //Store the index
+      user_activity_index_store($user, $index);
+      //generate cache
+      cache_set($cid, 'cache', serialize($index), CACHE_TEMPORARY);
+    }
   }
 }
 
