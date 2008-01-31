@@ -55,7 +55,7 @@ function user_activity_perm() {
  */
 function user_activity_user($op, &$edit, &$account, $category = NULL) {
   global $user;
-// drupal_set_message($op);
+
   switch ($op) {
     case 'insert':
       $idx = user_activity_index_calculate($account);
@@ -73,8 +73,23 @@ function user_activity_user($op, &$edit, &$account, $category = NULL) {
       return array(t('Activity') => $items);
       break;
     case 'load':
-      $account->user_activity_index = user_activity_index_get($account);
-//       dprint_r($account);
+      //cache id
+      $cid = 'user-interests-uid-'. $account->uid;
+      //get cached object
+      $cache = cache_get($cid);
+      
+      if (!empty($cache)) {
+        //attach cached object to the user object
+        $account->user_activity_index = unserialize($cache->data);
+        
+      }
+      else {
+        //load activity index
+        $account->user_activity_index = user_activity_index_get($account);
+        //generate cache
+        cache_set($cid, 'cache', serialize($account->user_activity_index), CACHE_TEMPORARY);
+      }
+      
       break;
     case 'delete':
       db_query("DELETE FROM {user_activity} WHERE uid=%d", $account->uid);
@@ -279,17 +294,14 @@ function user_activity_index_calculate($user) {
  * @return A database query result resource, or FALSE if the query was not executed correctly.
  */
 function user_activity_index_store($user, $idx) {
-//   drupal_set_message('Store');
 
   if ($user->uid == 0) {
     return FALSE;
   }
   $result = db_query("SELECT uid FROM {user_activity} WHERE uid=%d", $user->uid);
-//   drupal_set_message(db_num_rows($result));
   if (db_num_rows($result) == 0) {
     user_activity_set($user);
   }
-  drupal_set_message($uid->uid);
 
   return db_query("UPDATE {user_activity} SET idx=%f, timestamp=%d WHERE uid=%d", $idx, time(), $user->uid);
 }
@@ -469,10 +481,8 @@ function user_activity_settings() {
 }
 
 function user_activity_settings_submit($form_id, $form_values) {
-//   dprint_r($form_values);
   if (is_numeric($form_values['user_activity_pis']))      variable_set('user_activity_pis',      $form_values['user_activity_pis']);
   if (is_numeric($form_values['user_activity_logins']))   variable_set('user_activity_logins',   $form_values['user_activity_logins']);
   if (is_numeric($form_values['user_activity_pis']))      variable_set('user_activity_nodes',    $form_values['user_activity_nodes']);
   if (is_numeric($form_values['user_activity_comments'])) variable_set('user_activity_comments', $form_values['user_activity_comments']);
 }
-
