@@ -454,28 +454,24 @@ function user_activity_settings() {
     '#title' => t('Page impressions'),
     '#default_value' => variable_get('user_activity_pis', 1),
     '#options' => $weighting,
-    '#description' => t('Global setting for the length of XML feed items that are output by default.'),
   );
   $form['user_activity']['user_activity_logins'] = array(
     '#type' => 'select',
     '#title' => t('User logins'),
     '#default_value' => variable_get('user_activity_logins', 1),
     '#options' => $weighting,
-    '#description' => t('Global setting for the length of XML feed items that are output by default.'),
   );
   $form['user_activity']['user_activity_nodes'] = array(
     '#type' => 'select',
     '#title' => t('Nodes created'),
     '#default_value' => variable_get('user_activity_nodes', 1),
     '#options' => $weighting,
-    '#description' => t('Global setting for the length of XML feed items that are output by default.'),
   );
   $form['user_activity']['user_activity_comments'] = array(
     '#type' => 'select',
     '#title' => t('Comments created'),
     '#default_value' => variable_get('user_activity_comments', 1),
     '#options' => $weighting,
-    '#description' => t('Global setting for the length of XML feed items that are output by default.'),
   );
   return system_settings_form($form);
 }
