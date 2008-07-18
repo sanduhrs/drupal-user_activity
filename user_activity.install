@@ -2,37 +2,48 @@
 /* $Id$ */
 
 /**
+ * Implementation of hook_schema().
+ */
+function user_activity_schema() {
+  $schema['user_activity'] = array(
+    'description' => t('The base table user activity.'),
+    'fields' => array(
+      'uid' => array(
+        'description' => t('The primary identifier for a user.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'pis' => array(
+        'description' => t('Counts a users page impressions.'),
+        'type' => 'int',
+        'not null' => TRUE),
+      'logins' => array(
+        'description' => t('Counts a users page logins.'),
+        'type' => 'int',
+        'not null' => TRUE),
+      'idx' => array(
+        'description' => t('A users activity index.'),
+        'type' => 'float',
+        'precision' => 30,
+        'scale' => 20,
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'timestamp' => array(
+        'description' => t('Timestamp of the last update.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      ),
+    'primary key' => array('uid'),
+  );
+  return $schema;
+}
+
+/**
  * Implementation of hook_install().
  */
 function user_activity_install() {
-  switch ($GLOBALS['db_type']) {
-    case 'mysql':
-    case 'mysqli':
-      db_query("CREATE TABLE {user_activity} (
-                  uid int(10) unsigned NOT NULL,
-                  pis int(11) NOT NULL,
-                  logins int(11) NOT NULL,
-                  idx double(30,20) unsigned NOT NULL,
-                  timestamp int(11) NOT NULL,
-                  PRIMARY KEY (`uid`),
-                  KEY (`pis`),
-                  KEY (`logins`),
-                  KEY (`idx`)
-                ) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;"
-      );
-      break;
-    case 'pgsql':
-      db_query("CREATE TABLE {user_activity} (
-                  uid int_unsigned NOT NULL PRIMARY KEY,
-                  pis integer NOT NULL,
-                  logins integer NOT NULL,
-                  since integer NOT NULL
-                  idx double NOT NULL,
-                  timestamp integer NOT NULL
-                );"
-      );
-      break;
-  }
+  drupal_install_schema('user_activity');
 }
 
 /**
@@ -41,7 +52,6 @@ function user_activity_install() {
 function user_activity_uninstall() {
   //cache id
   $cid = 'user-activity';
-  
-  db_query('DROP TABLE {user_activity}');
   cache_clear_all($cid, 'cache', TRUE);
+  drupal_uninstall_schema('user_activity');
 }

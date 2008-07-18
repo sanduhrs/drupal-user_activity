@@ -1,5 +1,6 @@
 ; $Id$
 name         = User Activity
 description  = "Calculates and displays a user's activity index."
+core = 6.x
 ; dependencies = module1 module2 module3
 ; package      = "Your arbitrary grouping string"
