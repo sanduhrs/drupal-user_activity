@@ -326,7 +326,7 @@ function theme_user_activity_o_meter($index) {
   $output = '
   <div class="user_activity_o_meter user_activity_o_meter_large">
     <div class="background">'. sprintf("%01.2f", $index) .'%</div>
-    <div class="foreground" style="width:50%;"></div>
+    <div class="foreground" style="width:'. sprintf("%01.2f", $index) .'%;"></div>
   </div>';
 
   return $output;
@@ -341,8 +341,8 @@ function theme_user_activity_o_meter_small($index) {
   drupal_add_css(drupal_get_path('module', 'user_activity') .'/user_activity.css');
   $output = '
   <div class="user_activity_o_meter user_activity_o_meter_small">
-    <div class="background" style="width:50%;"></div>
-    <div class="foreground">'. sprintf("%01.2f", $index) .'%</div>
+    <div class="foreground" style="width:'. sprintf("%01.0f", $index) .'%;"></div>
+    <div class="background">'. sprintf("%01.2f", $index) .'%</div>
   </div>';
 
   return $output;
