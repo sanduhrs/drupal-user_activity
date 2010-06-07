@@ -318,6 +318,9 @@ function user_activity_index_calculate($user) {
   //Calculate activity index
   $activity_index = ($percentage->logins+$percentage->pis+$percentage->nodes+$percentage->comments)/array_sum($weight);
 
+  // Allow altering the index by other modules implementing hook_user_activity_index_alter(&$activity_index)
+  drupal_alter('user_activity_index', &$activity_index);
+
   return $activity_index;
 }
 
