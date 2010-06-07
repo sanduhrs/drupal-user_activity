@@ -145,10 +145,7 @@ function user_activity_update($limit) {
 }
 
 function user_activity_browse() {
-  $result = pager_query("SELECT DISTINCT(u.uid) FROM {user_activity} ua
-                            INNER JOIN {users} u ON u.uid=ua.uid
-                            WHERE u.status>0 AND u.access>0 ORDER BY ua.idx DESC", 10);
-
+  $result = user_activity_highscore(10);
   $output = '<div id="user_activity">';
   while ($account = db_fetch_object($result)) {
     $account = user_load(array('uid' => $account->uid));
@@ -474,4 +471,14 @@ function user_activity_feed($uids = array(), $channel = array()) {
 
   drupal_set_header('Content-Type: application/rss+xml; charset=utf-8');
   print $output;
+}
+
+
+/**
+ * Returns the users sorted by their indexes
+ */
+function user_activity_highscore($limit) {
+ return pager_query("SELECT DISTINCT(u.uid) FROM {user_activity} ua
+                            INNER JOIN {users} u ON u.uid=ua.uid
+                            WHERE u.status>0 AND u.access>0 ORDER BY ua.idx DESC", $limit);
 }
