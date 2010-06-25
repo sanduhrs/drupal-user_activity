@@ -2,6 +2,16 @@
 /* $Id$ */
 
 /**
+ * @file
+ * Calculates and displays a user's activity index.
+ *
+ * The calculation is based on logins, pis, created nodes and comments
+ *
+ * @author
+ * Stefan Auditor <stefan.auditor@erdfisch.de>
+ */
+
+/**
  * Implementation of hook_schema().
  */
 function user_activity_schema() {
@@ -36,6 +46,36 @@ function user_activity_schema() {
       ),
     'primary key' => array('uid'),
   );
+  $schema['user_activity_stats'] = array(
+    'description' => t('TODO: please describe this table!'),
+    'fields' => array(
+      'uid' => array(
+        'description' => t('TODO: please describe this field!'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => t('TODO: please describe this field!'),
+        'type' => 'varchar',
+        'length' => '10',
+        'not null' => TRUE,
+      ),
+      'value' => array(
+        'description' => t('TODO: please describe this field!'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'created' => array(
+        'description' => t('TODO: please describe this field!'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'indexes' => array(
+      'type' => array('type'),
+      'uid' => array('uid'),
+    ),
+  );
   return $schema;
 }
 
@@ -50,8 +90,78 @@ function user_activity_install() {
  * Implementation of hook_uninstall().
  */
 function user_activity_uninstall() {
-  //cache id
-  $cid = 'user-activity';
-  cache_clear_all($cid, 'cache', TRUE);
   drupal_uninstall_schema('user_activity');
+}
+
+/**
+ * Implement HOOK_update_N():
+ */
+function user_activity_update_6100() {
+  $cid = 'user-activity';
+  cache_clear_all($cid, 'cache_user_activity', TRUE);
+
+  $schema['user_activity_stats'] = array(
+    'description' => t('TODO: please describe this table!'),
+    'fields' => array(
+      'uid' => array(
+        'description' => t('TODO: please describe this field!'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => t('TODO: please describe this field!'),
+        'type' => 'varchar',
+        'length' => '10',
+        'not null' => TRUE,
+      ),
+      'value' => array(
+        'description' => t('TODO: please describe this field!'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'created' => array(
+        'description' => t('TODO: please describe this field!'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'indexes' => array(
+      'type' => array('type'),
+      'uid' => array('uid'),
+    ),
+  );
+
+  $ret = array();
+  db_create_table($ret, 'user_activity_stats', $schema['user_activity_stats']);
+  return $ret;
+}
+
+/**
+ * Implement HOOK_update_N():
+ */
+function user_activity_update_6101() {
+  $ret = array();
+  $batch = array(
+    'title' => t('Updating the activity index'),
+    'operations' => array(
+      array('user_activity_migrate_6101', array()),
+    ),
+  );
+  batch_set($batch);
+  return $ret;
+}
+
+/**
+ * Migrate activity indexes; Batch api
+ */
+function user_activity_migrate_6101() {
+  $timestamp = time();
+  $result = db_query("SELECT uid, pis, logins FROM {user_activity} ORDER BY uid ASC");
+  while ($row = db_fetch_object($result)) {
+    db_query("INSERT INTO {user_activity_stats} (uid, type, value, created) VALUES (%d, '%s', %d, %d)", $row->uid, 'pi', $row->pis, $timestamp);
+    db_query("INSERT INTO {user_activity_stats} (uid, type, value, created) VALUES (%d, '%s', %d, %d)", $row->uid, 'login', $row->logins, $timestamp);
+
+    $context['results'][] = 'uid ' . $row->uid;
+  }
+  $context['message'] = t('Migrated user activity indexes.');
 }

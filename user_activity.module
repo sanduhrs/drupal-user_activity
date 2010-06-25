@@ -53,13 +53,10 @@ function user_activity_user($op, &$edit, &$account, $category = NULL) {
   global $user;
   //cache id
   $cid = 'user-activity-uid-'. $account->uid;
-  
+
   switch ($op) {
-    case 'insert':
-      $idx = user_activity_index_calculate($account);
-      user_activity_index_store($account, $idx);
-      break;
     case 'login':
+      user_activity_userentry($user);
       user_activity_login_count($account);
       break;
     case 'view':
@@ -72,10 +69,14 @@ function user_activity_user($op, &$edit, &$account, $category = NULL) {
       break;
     case 'load':
       $account->user_activity_index = user_activity_index_get($account);
+      if (!$account->user_activity_index) {
+        user_activity_userentry($account);
+        user_activity_index_store($account);
+      }
       break;
     case 'delete':
-      db_query("DELETE FROM {user_activity} WHERE uid=%d", $account->uid);
-      cache_clear_all($cid, 'cache');
+      db_query("DELETE FROM {user_activity} WHERE uid = %d", $account->uid);
+      cache_clear_all($cid, 'cache_user_activity');
       break;
   }
 }
@@ -131,7 +132,14 @@ function user_activity_block($op = 'list', $delta = 0, $edit = array()) {
  * Implementation of hook_cron().
  */
 function user_activity_cron() {
-  user_activity_update(250);
+  user_activity_cleanup();
+  $cron_items = variable_get('user_activity_cron_items', 100);
+  user_activity_update($cron_items);
+}
+
+function user_activity_cleanup() {
+  $timeframe = time() - variable_get('user_activity_timeframe', 0);
+  return db_query("DELETE FROM {user_activity_stats} WHERE created <= %d", $timeframe);
 }
 
 function user_activity_update($limit) {
@@ -139,8 +147,7 @@ function user_activity_update($limit) {
 
   while ($account = db_fetch_object($result)) {
     $account = user_load(array('uid' => $account->uid));
-    $account->user_activity_index = user_activity_index_calculate($account);
-    user_activity_index_store($account, $account->user_activity_index);
+    user_activity_index_store($account);
   }
 }
 
@@ -166,22 +173,19 @@ function user_activity_exit($destination = NULL) {
   if ($user->uid) {
     //Count the page impression
     user_activity_pi_count($user);
-    
+
     //cache id
     $cid = 'user-activity-uid-'. $user->uid;
     //maximum cache time
-    $lifetime = 24*60*60; //24hours
-    
+    $lifetime = variable_get('user_activity_lifetime', 0);
+
     //get cached object
-    $cache = cache_get($cid);
-    
-    if (empty($cache)  OR (($cache->created+$lifetime) <= time())) {
+    $cache = cache_get($cid, 'cache_user_activity');
+    if (empty($cache)  OR (($cache->created + $lifetime) <= time())) {
       //Recalculate the activity index
-      $index = user_activity_index_calculate($user);
-      //Store the index
-      user_activity_index_store($user, $index);
+      user_activity_index_store($user);
       //generate cache
-      cache_set($cid, $index, 'cache', CACHE_TEMPORARY);
+      cache_set($cid, $index, 'cache_user_activity', CACHE_TEMPORARY);
     }
   }
 }
@@ -215,6 +219,7 @@ function user_activity_theme() {
 
 /**
  * Check if there already is a DB entry for that user
+ * and if not create one
  * @param $user a user object
  */
 function user_activity_userentry($user) {
@@ -228,8 +233,7 @@ function user_activity_userentry($user) {
  * @param $user a user object
  */
 function user_activity_login_count($user) {
-  user_activity_userentry($user);
-  return db_query("UPDATE {user_activity} SET logins=logins+1 WHERE uid=%d", $user->uid);
+  return user_activity_count($user, 'login');
 }
 
 /**
@@ -237,8 +241,11 @@ function user_activity_login_count($user) {
  * @param $user a user object
  */
 function user_activity_pi_count($user) {
-  user_activity_userentry($user);
-  return db_query("UPDATE {user_activity} SET pis=pis+1 WHERE uid=%d", $user->uid);
+  return user_activity_count($user, 'pi');
+}
+
+function user_activity_count($user, $type, $count = 1) {
+  return db_query("INSERT INTO {user_activity_stats} (uid, type, value, created) VALUES (%d, '%s', %d, %d)  ", $user->uid, $type, $count, time());
 }
 
 /**
@@ -251,12 +258,28 @@ function user_activity_set($user) {
 }
 
 /**
+ * Calculate a user's activity index based on logins, page impressions and authorship
+ * @param $user a user object
+ * @param $weight array of integers
+ * @return an floating point number representing a percentage
+ */
+function user_activity_index_calculate($user, $weight = array()) {
+  $mode = variable_get('user_activity_mode', 'dynamic');
+  if (function_exists('user_activity_index_calculate_' . $mode)) {
+    $activity_index = call_user_func('user_activity_index_calculate_' . $mode, $user, $weight);
+  }
+  // Allow altering the index by other modules implementing hook_user_activity_index_alter(&$activity_index)
+  drupal_alter('user_activity_index', &$activity_index, $mode);
+  return $activity_index;
+}
+
+/**
  * Get a user's page impressions
  * @param $user a user object
  * @return an integer representing the total of a user's page impressions
  */
-function user_activity_pis($user) {
-  return db_result(db_query("SELECT pis FROM {user_activity} WHERE uid=%d LIMIT 1", $user->uid));
+function user_activity_get_user_pis($user, $timeframe = 0) {
+  return db_result(db_query("SELECT SUM(value) as pis FROM {user_activity_stats} WHERE uid = %d AND type = 'pi'", $user->uid, $timeframe));
 }
 
 /**
@@ -264,81 +287,177 @@ function user_activity_pis($user) {
  * @param $user a user object
  * @return an integer representing the total of a user's logins
  */
-function user_activity_logins($user) {
-  return db_result(db_query("SELECT logins FROM {user_activity} WHERE uid=%d LIMIT 1", $user->uid));
+function user_activity_get_user_logins($user, $timeframe = 0) {
+  return db_result(db_query("SELECT SUM(value) as logins FROM {user_activity_stats} WHERE uid = %d AND type = 'login'", $user->uid, $timeframe));
 }
 
 /**
- * Calculate a user's activity index based on logins, page impressions and authorship
+ * Get a user's nodes
  * @param $user a user object
- * @return an floating point number representing a percentage
+ * @return an integer representing the total of a user's logins
  */
-function user_activity_index_calculate($user) {
+function user_activity_get_user_nodes($user, $timeframe = 0) {
+  return db_result(db_query("SELECT COUNT(*) AS count FROM {node} WHERE uid=%d AND created >= %d", $user->uid, $timeframe));
+}
+
+/**
+ * Get a user's comments
+ * @param $user a user object
+ * @return an integer representing the total of a user's logins
+ */
+function user_activity_get_user_comments($user, $timeframe = 0) {
+  return db_result(db_query("SELECT COUNT(*) AS count FROM {comments} WHERE uid=%d AND timestamp >= %d", $user->uid, $timeframe));
+}
+
+/**
+ * Get most active user's page impressions
+ * @param $user a user object
+ * @return an integer representing the total of a user's page impressions
+ */
+function user_activity_get_max_pis() {
+  return db_result(db_query("SELECT pis FROM {user_activity} ORDER BY pis DESC LIMIT 1"));
+}
+
+/**
+ * Get most active user's logins
+ * @param $user a user object
+ * @return an integer representing the total of a user's logins
+ */
+function user_activity_get_max_logins() {
+  return db_result(db_query("SELECT logins FROM {user_activity} ORDER BY logins DESC LIMIT 1"));
+}
+
+/**
+ * Get most active user's nodes
+ * @param $user a user object
+ * @return an integer representing the total of a user's logins
+ */
+function user_activity_get_max_nodes($timeframe = 0) {
+  return db_result(db_query("SELECT COUNT(nid) AS count FROM {node} WHERE created >= %d GROUP BY uid ORDER BY count DESC LIMIT 1", $timeframe));
+}
+
+/**
+ * Get most active user's comments
+ * @param $user a user object
+ * @return an integer representing the total of a user's logins
+ */
+function user_activity_get_max_comments($timeframe = 0) {
+  return db_result(db_query("SELECT COUNT(cid) AS count FROM {comments} WHERE timestamp >= %d GROUP BY uid ORDER BY count DESC LIMIT 1", $timeframe));
+}
+
+/**
+ * Calculate static index
+ */
+function user_activity_index_calculate_static($user, $weight = array()) {
   //Get weights
-  $weight = array(
+  $weight += array(
     'logins'   => variable_get('user_activity_logins', 1),
     'pis'      => variable_get('user_activity_pis', 1),
     'nodes'    => variable_get('user_activity_nodes', 1),
     'comments' => variable_get('user_activity_comments', 1),
   );
 
+  $timeframe = time() - variable_get('user_activity_timeframe', 0);
+
   //Get maximum logins/pis/nodes
-  $max->logins    = db_result(db_query("SELECT logins FROM {user_activity} ORDER BY logins DESC LIMIT 1"));
-  $max->pis       = db_result(db_query("SELECT pis FROM {user_activity} ORDER BY pis DESC LIMIT 1"));
+  $max->logins    = variable_get('user_activity_max_logins', 7);
   $max->logins    = $max->logins ? $max->logins : 1;
+  $max->pis       = variable_get('user_activity_max_pis', 100);
   $max->pis       = $max->pis ? $max->pis : 1;
-  $max->nodes     = db_result(db_query("SELECT COUNT(nid) AS count FROM {node} GROUP BY uid ORDER BY count DESC LIMIT 1"));
+  $max->nodes     = variable_get('user_activity_max_nodes', 5);
   $max->nodes     = $max->nodes ? $max->nodes : 1;
-  $max->comments  = db_result(db_query("SELECT COUNT(cid) AS count FROM {comments} GROUP BY uid ORDER BY count DESC LIMIT 1"));
+  $max->comments  = variable_get('user_activity_max_comments', 25);
   $max->comments  = $max->comments ? $max->comments : 1;
 
   //Get user's logins/pis/nodes
-  $usr   = db_fetch_object(db_query("SELECT logins,pis FROM {user_activity} WHERE uid=%d", $user->uid));
+  $usr->logins   = user_activity_get_user_logins($user, $timeframe);
   $usr->logins   = $usr->logins ? $usr->logins : 1;
+  $usr->pis      = user_activity_get_user_pis($user, $timeframe);
   $usr->pis      = $usr->pis ? $usr->pis : 1;
-  $usr->nodes    = db_result(db_query("SELECT COUNT(*) AS count FROM {node} WHERE uid=%d", $user->uid));
+  $usr->nodes    = user_activity_get_user_nodes($user, $timeframe);
   $usr->nodes    = $usr->nodes ? $usr->nodes : 1;
-  $usr->comments = db_result(db_query("SELECT COUNT(*) AS count FROM {comments} WHERE uid=%d", $user->uid));
+  $usr->comments = user_activity_get_user_comments($user, $timeframe);
   $usr->comments = $usr->comments ? $usr->comments : 1;
 
   //Calculate percentages
-  $percentage->logins   = ($usr->logins/$max->logins)*100*$weight['logins'];
-  $percentage->pis      = ($usr->pis/$max->pis)*100*$weight['pis'];
-  $percentage->nodes    = ($usr->nodes/$max->nodes)*100*$weight['nodes'];
-  $percentage->comments = ($usr->comments/$max->comments)*100*$weight['comments'];
-
-  //DEBUG
-  //drupal_set_message($user->uid. ' Logins: '. $max->logins .':'. $usr->logins .' Percent: '. $percentage->logins);
-  //drupal_set_message($user->uid. ' PIs: '. $max->pis .':'. $usr->pis .'Percent: '. $percentage->pis);
-  //drupal_set_message($user->uid. ' Nodes: '. $max->nodes .':'. $usr->nodes .'Percent: '. $percentage->nodes);
-  //drupal_set_message($user->uid. ' Comments: '. $max->comments .':'. $usr->comments .'Percent: '. $percentage->comments);
-  //drupal_set_message(print_r($weight, 1));
-
+  $percentage->logins   = ($usr->logins   / $max->logins)   * 100 * $weight['logins'];
+  $percentage->pis      = ($usr->pis      / $max->pis)      * 100 * $weight['pis'];
+  $percentage->nodes    = ($usr->nodes    / $max->nodes)    * 100 * $weight['nodes'];
+  $percentage->comments = ($usr->comments / $max->comments) * 100 * $weight['comments'];
 
   //Calculate activity index
   $activity_index = ($percentage->logins+$percentage->pis+$percentage->nodes+$percentage->comments)/array_sum($weight);
 
-  // Allow altering the index by other modules implementing hook_user_activity_index_alter(&$activity_index)
-  drupal_alter('user_activity_index', &$activity_index);
+  // The index will be > 100 if the defined max values are less the user
+  // achieved values. So we limit the index to 100 here.
+  $activity_index = ($activity_index > 100) ? 100 : $activity_index;
 
   return $activity_index;
 }
 
 /**
- * Store a user's activity index to the database
+ * Calculate daynamic index
+ */
+function user_activity_index_calculate_dynamic($user, $weight = array()) {
+  //Get weights
+  $weight += array(
+    'logins'   => variable_get('user_activity_logins', 1),
+    'pis'      => variable_get('user_activity_pis', 1),
+    'nodes'    => variable_get('user_activity_nodes', 1),
+    'comments' => variable_get('user_activity_comments', 1),
+  );
+
+  $timeframe = time() - variable_get('user_activity_timeframe', 0);
+
+  // Get maximum logins/pis/nodes
+  $max->logins    = user_activity_get_max_logins($user, $timeframe);
+  $max->logins    = $max->logins ? $max->logins : 1;
+  $max->pis       = user_activity_get_max_pis($user, $timeframe);
+  $max->pis       = $max->pis ? $max->pis : 1;
+  $max->nodes     = user_activity_get_max_nodes($timeframe);
+  $max->nodes     = $max->nodes ? $max->nodes : 1;
+  $max->comments  = user_activity_get_max_comments($timeframe);
+  $max->comments  = $max->comments ? $max->comments : 1;
+
+  //Get user's logins/pis/nodes
+  $usr->logins   = user_activity_get_user_logins($user, $timeframe);
+  $usr->logins   = $usr->logins ? $usr->logins : 1;
+  $usr->pis      = user_activity_get_user_pis($user, $timeframe);
+  $usr->pis      = $usr->pis ? $usr->pis : 1;
+  $usr->nodes    = user_activity_get_user_nodes($user, $timeframe);
+  $usr->nodes    = $usr->nodes ? $usr->nodes : 1;
+  $usr->comments = user_activity_get_user_comments($user, $timeframe);
+  $usr->comments = $usr->comments ? $usr->comments : 1;
+
+  //Calculate percentages
+  $percentage->logins   = ($usr->logins   / $max->logins)   * 100 * $weight['logins'];
+  $percentage->pis      = ($usr->pis      / $max->pis)      * 100 * $weight['pis'];
+  $percentage->nodes    = ($usr->nodes    / $max->nodes)    * 100 * $weight['nodes'];
+  $percentage->comments = ($usr->comments / $max->comments) * 100 * $weight['comments'];
+
+  //Calculate activity index
+  $activity_index = ($percentage->logins+$percentage->pis+$percentage->nodes+$percentage->comments)/array_sum($weight);
+
+  // The index will be slightly > 100 because of rounding issues. So we limit
+  // the index to 100 here.
+  $activity_index = ($activity_index > 100) ? 100 : $activity_index;
+
+  return $activity_index;
+}
+
+/**
+ * Recalculate and store a user's activity index to the database
  * @param $user a user object
  * @return A database query result resource, or FALSE if the query was not executed correctly.
  */
-function user_activity_index_store($user, $idx) {
-  if ($user->uid == 0) {
-    return FALSE;
-  }
-  $result = db_result(db_query("SELECT uid FROM {user_activity} WHERE uid=%d", $user->uid));
-  if (!$result) {
-    user_activity_set($user);
-  }
-
-  return db_query("UPDATE {user_activity} SET idx=%f, timestamp=%d WHERE uid=%d", $idx, time(), $user->uid);
+function user_activity_index_store($account, $update = 'uid') {
+  $index = new StdClass();
+  $index->uid = (int) $account->uid;
+  $index->idx = (float) user_activity_index_calculate($account);
+  $index->pis = (int) db_result(db_query("SELECT SUM(value) FROM {user_activity_stats} WHERE type = 'pi' AND uid = %d AND created >= %d", $account->uid, $timespan));
+  $index->logins = (int) db_result(db_query("SELECT SUM(value) FROM {user_activity_stats} WHERE type = 'login' AND uid = %d AND created >= %d", $account->uid, $timespan));
+  $index->timestamp = time();
+  return drupal_write_record('user_activity', $index, $update);
 }
 
 /**
@@ -421,7 +540,7 @@ function user_activity_feed($uids = array(), $channel = array()) {
   foreach ($uids as $uid) {
     // Load the specified user
     $item = user_load(array('uid' => $uid));
-    $link = url("user/$uid", array('absolute' => TRUE));
+    $link = url('user/' . $uid, array('absolute' => TRUE));
 
     $extra = array();
     $extra = array_merge($extra,
