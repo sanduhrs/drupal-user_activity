@@ -1,4 +1,3 @@
-; $Id$
 name         = User Activity
 description  = "Calculates and displays a user's activity index."
 core = 6.x
